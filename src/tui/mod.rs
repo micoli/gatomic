@@ -122,7 +122,7 @@ impl App {
         self.hunk_rows = hunk_pane::build_rows(&diff);
         self.selections
             .entry(path.clone())
-            .or_insert_with(|| FileSelection::all_selected(&path, &diff));
+            .or_insert_with(|| FileSelection::all_undecided(&path, &diff));
         self.current_file_diff = Some(diff);
         self.current_file_path = Some(path);
         self.hunk_state.select(if self.hunk_rows.is_empty() {
@@ -204,7 +204,7 @@ impl App {
         let selection = self
             .selections
             .entry(path.clone())
-            .or_insert_with(|| FileSelection::all_selected(&path, diff));
+            .or_insert_with(|| FileSelection::all_undecided(&path, diff));
 
         match row {
             HunkRow::Header(hunk_index) => selection.toggle_hunk(hunk_index),

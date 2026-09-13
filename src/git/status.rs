@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::Result;
 
 use super::repo::run_git;
@@ -24,6 +26,24 @@ pub struct FileEntry {
 pub fn list_file_entries() -> Result<Vec<FileEntry>> {
     let raw = run_git(&["status", "--porcelain=v1", "-z"])?;
     Ok(parse_porcelain_status(&raw))
+}
+
+/// Insertion/deletion counts for every file's total change vs HEAD (staged
+/// and unstaged combined), via a single `git diff HEAD --numstat` call
+/// covering every changed file at once — used by the Files pane, which
+/// otherwise would need one `git diff` spawn per file per redraw (very
+/// noticeable with many changed files).
+pub fn numstat_against_head() -> Result<HashMap<String, (u32, u32)>> {
+    let raw = run_git(&["diff", "HEAD", "--no-color", "--numstat"])?;
+    Ok(raw.lines().filter_map(parse_numstat_line).collect())
+}
+
+fn parse_numstat_line(line: &str) -> Option<(String, (u32, u32))> {
+    let mut parts = line.splitn(3, '\t');
+    let added: u32 = parts.next()?.parse().ok()?;
+    let removed: u32 = parts.next()?.parse().ok()?;
+    let path = parts.next()?;
+    Some((path.to_string(), (added, removed)))
 }
 
 fn parse_porcelain_status(raw: &str) -> Vec<FileEntry> {
@@ -99,6 +119,15 @@ mod tests {
         assert_eq!(entries[0].kind, FileStatusKind::Renamed);
         assert!(entries[0].staged);
         assert!(entries[0].has_unstaged_changes);
+    }
+
+    #[test]
+    fn parses_numstat_line() {
+        assert_eq!(
+            parse_numstat_line("3\t1\ta.txt"),
+            Some(("a.txt".to_string(), (3, 1)))
+        );
+        assert_eq!(parse_numstat_line("-\t-\timage.png"), None);
     }
 
     #[test]

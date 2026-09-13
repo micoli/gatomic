@@ -25,16 +25,25 @@ the original design plan/rationale.
     tracked/untracked status; untracked files deliberately reuse the exact
     same "new file" code path as tracked new files.
 - `src/selection.rs` — per-file hunk/line selection state
-  (`FileSelection`/`HunkSelection`). Toggling a hunk sets all its lines;
-  toggling a line recomputes the hunk's own selected flag.
+  (`FileSelection`/`HunkSelection`), with a 4-state `HunkDecision`
+  (`Undecided`/`Accepted`/`Rejected`/`Partial`) mirroring `git add -p`.
+  `decision` is UI/navigation-only (checkbox glyph, `J`/`K`) — the actual
+  staging truth is always `line_selected`, which `diff/patch.rs` reads
+  exclusively; `Undecided` and `Rejected` are staging-equivalent (both
+  empty). New files default to **all-undecided**, not all-selected: nothing
+  is staged until the user explicitly accepts/rejects each hunk.
 - `src/tui/` — one file per pane (`files_pane.rs`, `hunk_pane.rs`,
   `commits_pane.rs`) plus `layout.rs` (3-zone `ratatui::Layout`) and
-  `mod.rs` (the `App` state machine + event loop). Each toggle in the hunk
-  pane calls `diff::apply_selection` immediately (git add -p-style), which
-  first resets the file's index entry to HEAD then reapplies the current
-  selection from scratch — this makes every toggle idempotent regardless of
-  toggle history, so don't try to make it incremental/diffed against the
-  previous selection.
+  `mod.rs` (the `App` state machine + event loop). Each hunk/line decision
+  in the Hunks pane calls `diff::apply_selection` immediately (git
+  add -p-style), which first resets the file's index entry to HEAD then
+  reapplies the current selection from scratch — this makes every decision
+  idempotent regardless of history, so don't try to make it
+  incremental/diffed against the previous selection.
+- The Hunks pane has two coexisting interaction styles: free navigation
+  (arrows + Space/Enter, any row granularity) and the guided `git add -p`
+  review (`y`/`n`/`a`/`d`/`j`/`k`/`J`/`K`, hunk granularity only). Both
+  mutate the same `FileSelection` — don't let them diverge.
 
 ## Key invariants / gotchas
 
@@ -45,9 +54,13 @@ the original design plan/rationale.
 - Fixup is committed with `git commit --fixup <sha>`. No squash, no
   autosquash in V1 (explicit user decision) — don't add those without
   checking with the user first.
-- After a successful fixup commit, `App` clears all cached
-  `FileDiff`/`FileSelection` state, because HEAD moved and any open diff
-  snapshot is stale.
+- After a successful fixup commit (single commit via `f`, or a batch via
+  triage `a`), `App` clears all cached `FileDiff`/`FileSelection` state,
+  because HEAD moved and any open diff snapshot is stale.
+- Triage screen appears automatically at startup only when at least one
+  evident match exists; it is not a separate opt-in mode. `T` in the Files
+  pane reopens it on demand. `e` (manual hunk edit in an external editor)
+  is explicitly out of scope — don't add it without checking with the user.
 
 ## Commands
 

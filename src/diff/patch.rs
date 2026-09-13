@@ -134,10 +134,16 @@ mod tests {
         parse_file_diff(raw).unwrap()
     }
 
+    fn all_accepted(file: &str, diff: &FileDiff) -> FileSelection {
+        let mut selection = FileSelection::all_undecided(file, diff);
+        selection.accept_hunk_and_rest(0);
+        selection
+    }
+
     #[test]
     fn fully_selected_patch_matches_original_hunks() {
         let diff = diff_with_three_hunks();
-        let selection = FileSelection::all_selected("f.txt", &diff);
+        let selection = all_accepted("f.txt", &diff);
         let patch = build_patch(&diff, &selection).unwrap();
         assert!(patch.contains("@@ -1,2 +1,2 @@"));
         assert!(patch.contains("@@ -10,2 +10,3 @@"));
@@ -147,8 +153,8 @@ mod tests {
     #[test]
     fn dropping_a_net_zero_hunk_does_not_shift_others() {
         let diff = diff_with_three_hunks();
-        let mut selection = FileSelection::all_selected("f.txt", &diff);
-        selection.toggle_hunk(0); // hunk 1 has net delta 0 (one removal, one addition)
+        let mut selection = all_accepted("f.txt", &diff);
+        selection.reject_hunk(0); // hunk 1 has net delta 0 (one removal, one addition)
         let patch = build_patch(&diff, &selection).unwrap();
         // First hunk skipped entirely.
         assert!(!patch.contains("@@ -1,2"));
@@ -160,8 +166,8 @@ mod tests {
     #[test]
     fn skipping_middle_hunk_shifts_last_hunk_offset() {
         let diff = diff_with_three_hunks();
-        let mut selection = FileSelection::all_selected("f.txt", &diff);
-        selection.toggle_hunk(1); // drop the +1 net-delta hunk
+        let mut selection = all_accepted("f.txt", &diff);
+        selection.reject_hunk(1); // drop the +1 net-delta hunk
         let patch = build_patch(&diff, &selection).unwrap();
         assert!(patch.contains("@@ -1,2 +1,2 @@"));
         assert!(!patch.contains("@@ -10,2"));
@@ -174,7 +180,7 @@ mod tests {
         let raw =
             "diff --git a/f.txt b/f.txt\n--- a/f.txt\n+++ b/f.txt\n@@ -1,2 +1,2 @@\n-a\n+A\n b\n";
         let diff = parse_file_diff(raw).unwrap();
-        let mut selection = FileSelection::all_selected("f.txt", &diff);
+        let mut selection = all_accepted("f.txt", &diff);
         selection.toggle_line(0, 0); // deselect the removal of "a"
         let patch = build_patch(&diff, &selection).unwrap();
         assert!(patch.contains(" a\n"));
@@ -184,10 +190,7 @@ mod tests {
     #[test]
     fn nothing_selected_produces_no_patch() {
         let diff = diff_with_three_hunks();
-        let mut selection = FileSelection::all_selected("f.txt", &diff);
-        for i in 0..selection.hunks.len() {
-            selection.toggle_hunk(i);
-        }
+        let selection = FileSelection::all_undecided("f.txt", &diff);
         assert!(build_patch(&diff, &selection).is_none());
     }
 
@@ -195,7 +198,7 @@ mod tests {
     fn new_file_partial_selection_keeps_zero_old_start() {
         let raw = "diff --git a/new.txt b/new.txt\nnew file mode 100644\n--- /dev/null\n+++ b/new.txt\n@@ -0,0 +1,2 @@\n+line1\n+line2\n";
         let diff = parse_file_diff(raw).unwrap();
-        let mut selection = FileSelection::all_selected("new.txt", &diff);
+        let mut selection = all_accepted("new.txt", &diff);
         selection.toggle_line(0, 1); // drop line2
         let patch = build_patch(&diff, &selection).unwrap();
         assert!(patch.contains("@@ -0,0 +1,1 @@"));

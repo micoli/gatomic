@@ -6,7 +6,7 @@ use ratatui::widgets::{Block, Borders, List, ListItem};
 
 use super::{App, Pane};
 use crate::diff::{FileDiff, LineKind};
-use crate::selection::FileSelection;
+use crate::selection::{FileSelection, HunkDecision};
 
 #[derive(Debug, Clone, Copy)]
 pub enum HunkRow {
@@ -36,7 +36,7 @@ fn render_row(row: &HunkRow, diff: &FileDiff, selection: &FileSelection) -> List
             let selected = selection
                 .hunks
                 .get(hunk_index)
-                .map(|h| h.selected)
+                .map(|h| h.decision == HunkDecision::Accepted)
                 .unwrap_or(false);
             let text = format!(
                 "{} @@ -{},{} +{},{} @@",
