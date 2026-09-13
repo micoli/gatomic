@@ -4,6 +4,7 @@ pub struct PaneAreas {
     pub files: Rect,
     pub hunks: Rect,
     pub commits: Rect,
+    pub commit_show: Rect,
     pub help: Rect,
 }
 
@@ -27,10 +28,16 @@ pub fn compute_layout(area: Rect, file_count: usize) -> PaneAreas {
         .constraints([Constraint::Length(files_height), Constraint::Min(0)])
         .split(outer[0]);
 
+    let right = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
+        .split(outer[1]);
+
     PaneAreas {
         files: left[0],
         hunks: left[1],
-        commits: outer[1],
+        commits: right[0],
+        commit_show: right[1],
         help: rows[1],
     }
 }

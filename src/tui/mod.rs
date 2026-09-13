@@ -1,7 +1,9 @@
+mod commit_show_pane;
 mod commits_pane;
 mod files_pane;
 mod hunk_pane;
 mod layout;
+mod text_pane;
 mod theme;
 mod triage_screen;
 
@@ -64,6 +66,7 @@ pub struct App {
 
     commits: Vec<CommitInfo>,
     commits_state: ListState,
+    commit_show_scroll: u16,
     files_by_commit: HashMap<String, HashSet<String>>,
 
     pane: Pane,
@@ -201,6 +204,7 @@ impl App {
             hunk_counts: HashMap::new(),
             commits: Vec::new(),
             commits_state: ListState::default(),
+            commit_show_scroll: 0,
             files_by_commit: HashMap::new(),
             pane: Pane::Files,
             current_file_path: None,
@@ -379,7 +383,10 @@ impl App {
                 self.load_selected_file_diff()?;
             }
             Pane::Hunks => Self::next_in(&mut self.hunk_state, self.hunk_rows.len()),
-            Pane::Commits => Self::next_in(&mut self.commits_state, self.commits.len()),
+            Pane::Commits => {
+                Self::next_in(&mut self.commits_state, self.commits.len());
+                self.commit_show_scroll = 0;
+            }
         }
         Ok(())
     }
@@ -391,7 +398,10 @@ impl App {
                 self.load_selected_file_diff()?;
             }
             Pane::Hunks => Self::prev_in(&mut self.hunk_state, self.hunk_rows.len()),
-            Pane::Commits => Self::prev_in(&mut self.commits_state, self.commits.len()),
+            Pane::Commits => {
+                Self::prev_in(&mut self.commits_state, self.commits.len());
+                self.commit_show_scroll = 0;
+            }
         }
         Ok(())
     }
@@ -769,7 +779,10 @@ impl App {
             let offset = *self.commits_state.offset_mut();
             if let Some(idx) = row_at(areas.commits, offset, y, self.commits.len()) {
                 self.commits_state.select(Some(idx));
+                self.commit_show_scroll = 0;
             }
+        } else if area_contains(areas.commit_show, x, y) {
+            self.pane = Pane::Commits;
         }
         Ok(())
     }
@@ -803,6 +816,14 @@ impl App {
             } else {
                 self.move_up()
             }
+        } else if area_contains(areas.commit_show, x, y) {
+            self.pane = Pane::Commits;
+            if down {
+                self.commit_show_scroll = self.commit_show_scroll.saturating_add(1);
+            } else {
+                self.commit_show_scroll = self.commit_show_scroll.saturating_sub(1);
+            }
+            Ok(())
         } else {
             Ok(())
         }
@@ -920,6 +941,12 @@ impl App {
             KeyCode::Char('s') if self.pane == Pane::Hunks => self.split_current_hunk()?,
             KeyCode::Char('j') => self.move_down()?,
             KeyCode::Char('k') => self.move_up()?,
+            KeyCode::PageDown if self.pane == Pane::Commits => {
+                self.commit_show_scroll = self.commit_show_scroll.saturating_add(1)
+            }
+            KeyCode::PageUp if self.pane == Pane::Commits => {
+                self.commit_show_scroll = self.commit_show_scroll.saturating_sub(1)
+            }
             _ => {}
         }
         Ok(())
@@ -937,6 +964,7 @@ impl App {
         files_pane::render(frame, areas.files, self);
         hunk_pane::render(frame, areas.hunks, self);
         commits_pane::render(frame, areas.commits, self);
+        commit_show_pane::render(frame, areas.commit_show, self);
         render_help_bar(frame, areas.help, self.pane);
 
         if let Some(form) = &self.commit_form {
