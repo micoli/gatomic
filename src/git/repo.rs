@@ -9,6 +9,20 @@ pub const NULL_DEVICE: &str = "NUL";
 #[cfg(not(windows))]
 pub const NULL_DEVICE: &str = "/dev/null";
 
+/// Moves the process's current directory to the repository's top level.
+///
+/// Every path gatomic deals with (from `git status`, `git diff-tree`, ...)
+/// is repo-root-relative, but plain `git <cmd> -- <path>` pathspecs are
+/// resolved relative to the current directory. Without this, running
+/// gatomic from a subdirectory silently produces empty diffs/stats for any
+/// file whose root-relative path doesn't happen to also be a valid path
+/// relative to that subdirectory.
+pub fn cd_to_repo_root() -> Result<()> {
+    let top_level = run_git(&["rev-parse", "--show-toplevel"])?;
+    std::env::set_current_dir(top_level.trim())
+        .with_context(|| format!("failed to switch to repo root {top_level:?}"))
+}
+
 /// Runs `git <args>` in the current directory and returns stdout as a String.
 /// Fails on non-zero exit, except when `allow_exit_code_1` is set (used by
 /// commands like `git diff --no-index` that exit 1 when there are differences).

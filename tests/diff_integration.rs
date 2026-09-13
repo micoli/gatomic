@@ -5,7 +5,7 @@
 mod common;
 
 use gatomic::diff::{apply_selection, load_file_diff};
-use gatomic::git::FileStatusKind;
+use gatomic::git::{FileStatusKind, cd_to_repo_root};
 use gatomic::selection::FileSelection;
 
 use common::{Sandbox, sandbox_lock};
@@ -119,4 +119,22 @@ fn toggling_back_and_forth_is_idempotent() {
     let staged = sandbox.git(&["diff", "--cached"]);
     let staged_text = String::from_utf8_lossy(&staged.stdout);
     assert!(staged_text.contains("TWO"));
+}
+
+#[test]
+fn cd_to_repo_root_makes_root_relative_paths_resolvable_from_a_subdirectory() {
+    let _guard = sandbox_lock();
+    let sandbox = Sandbox::enter();
+
+    sandbox.commit("sub/a.txt", "a\n", "init");
+    sandbox.write("sub/a.txt", "a\nmodified\n");
+
+    std::env::set_current_dir(sandbox.dir.join("sub")).unwrap();
+
+    // Root-relative path (as reported by `git status`), run from inside
+    // "sub/" without the fix: this used to silently return an empty diff.
+    cd_to_repo_root().unwrap();
+    let diff = load_file_diff("sub/a.txt", &FileStatusKind::Modified, 3).unwrap();
+    assert_eq!(diff.hunks.len(), 1);
+    assert!(diff.hunks[0].lines.iter().any(|l| l.content == "modified"));
 }
