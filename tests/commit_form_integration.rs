@@ -32,6 +32,33 @@ fn commit_with_message_creates_a_plain_commit_from_staged_content() {
 }
 
 #[test]
+fn commit_with_message_strips_comment_lines_like_the_editor_flow_would() {
+    let _guard = sandbox_lock();
+    let sandbox = Sandbox::enter();
+
+    sandbox.commit("a.txt", "a\n", "init a");
+    sandbox.write("a.txt", "a\nmodified\n");
+    stage_path("a.txt").unwrap();
+
+    let message = "Subject line\n\
+        \n\
+        Body line\n\
+        # Please enter the commit message for your changes. Lines starting\n\
+        # with '#' will be ignored, and an empty message aborts the commit.\n\
+        #\n\
+        # vi:ft=gitcommit:tw=72:sw=2:ts=2:expandtab:spell\n";
+    commit_with_message(message).unwrap();
+
+    let log = sandbox.git(&["log", "-1", "--format=%B"]);
+    let committed = String::from_utf8_lossy(&log.stdout);
+    assert_eq!(committed.trim_end(), "Subject line\n\nBody line");
+    assert!(
+        !committed.contains('#'),
+        "template comment lines must not end up in the commit message: {committed:?}"
+    );
+}
+
+#[test]
 fn commit_template_is_none_when_unconfigured() {
     let _guard = sandbox_lock();
     let _sandbox = Sandbox::enter();

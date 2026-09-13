@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 
-use super::repo::{run_git, run_git_allowing};
+use super::repo::{run_git, run_git_allowing, run_git_with_stdin};
 
 #[derive(Debug, Clone)]
 pub struct CommitInfo {
@@ -38,8 +38,15 @@ pub fn commit_fixup(sha: &str) -> Result<()> {
 /// Creates a plain commit from whatever is currently staged, used by the
 /// "new commit" form to turn the hunks currently in the patch into a
 /// standalone commit instead of a fixup.
+///
+/// Goes through `-F -` with `--cleanup=strip` rather than `-m`: the form is
+/// prefilled from `commit.template`, which typically carries `#`-prefixed
+/// comment lines (instructions, a vi modeline) meant to be discarded before
+/// the commit is made — exactly what git itself does when the message comes
+/// from an editor, but *not* what it does with `-m` (default cleanup there
+/// is `whitespace`, comments included verbatim).
 pub fn commit_with_message(message: &str) -> Result<()> {
-    run_git(&["commit", "-m", message])?;
+    run_git_with_stdin(&["commit", "--cleanup=strip", "-F", "-"], message)?;
     Ok(())
 }
 
