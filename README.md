@@ -1,10 +1,10 @@
 # gatomic
 
-`gatomic` is a terminal UI to build atomic `git commit --fixup` commits: pick
-exactly the hunks — or individual lines — to stage from your working tree,
+`gatomic` is a terminal UI to build proper git history (atomic and linear),
+it helps to commit exactly the hunks — or individual lines — to stage from your working tree,
 then attach them to the right past commit, without leaving the TUI.
 
-It is the spiritual successor of `git-helper` (`gitHelper`), which already
+It is the spiritual successor of `fixup-helper`, which already
 helped find the right commit to fix up but delegated hunk selection to a
 shell-out to the real `git add -p`. `gatomic` integrates that selection
 natively.
@@ -18,12 +18,12 @@ natively.
 │ Hunks / lines          │ branch-only    │
 │ (space to toggle,      │ by default)    │
 │  staged immediately)   ├────────────────┤
-│                         │   git show     │
-│                         │ of selected    │
-│                         │    commit      │
+│                        │   git show     │
+│                        │ of selected    │
+│                        │    commit      │
 └────────────────────────┴────────────────┘
-│               status / help bar          │
-└───────────────────────────────────────────┘
+│               status / help bar         │
+└─────────────────────────────────────────┘
 ```
 
 - **Files** (top-left): modified, staged, and untracked files.
@@ -36,6 +36,22 @@ natively.
   or `origin/HEAD`/`origin/main`/`origin/master` as a fallback).
 - **git show** (bottom-right): the full `git show` of whichever commit is
   currently selected in the Commits pane, scrollable.
+
+## Evident file → commit matching
+
+For every modified, tracked file (untracked files are excluded — a brand
+new file has no history, so it can never be a fixup target), gatomic finds
+which of the commits currently listed in the Commits pane touched it. A
+match is **evident** when exactly one candidate commit touched the file —
+no ambiguity about which commit to fix up into.
+
+This single computation feeds two places in the UI:
+
+- **Commits pane**: while a file is selected in the Files pane, every
+  commit that touched it is marked with a green `✓`, whether the match is
+  evident or not.
+- **Triage screen** (below): only evident matches are surfaced there, since
+  it acts on them in bulk without asking which commit to target.
 
 ## Triage screen
 
