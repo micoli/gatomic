@@ -11,8 +11,25 @@ permissions:
   contents: write
 
 jobs:
+  # Creates the GitHub release first, with a changelog auto-generated from
+  # every commit/PR since the previous tag — GitHub's native release-notes
+  # generator, no extra dependency. Build jobs then only attach binaries to
+  # it, so the notes are written exactly once regardless of how many
+  # targets build in parallel. Skipped when triggered by manually
+  # publishing a release from the UI: it already exists with whatever
+  # notes were written there, and re-generating would overwrite them.
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create release with auto-generated changelog
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+
   build:
     name: ${{ matrix.target }}
+    needs: create-release
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
