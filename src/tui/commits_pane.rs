@@ -13,7 +13,8 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
     let items: Vec<ListItem> = app
         .commits
         .iter()
-        .map(|commit| {
+        .enumerate()
+        .map(|(index, commit)| {
             let contains_selected_file = selected_file.is_some_and(|path| {
                 app.files_by_commit
                     .get(&commit.short_sha)
@@ -28,6 +29,10 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
 
             Line::from(vec![
                 marker,
+                Span::styled(
+                    format!("{} ", index + 1),
+                    Style::default().fg(Color::DarkGray),
+                ),
                 Span::raw(format!(
                     "{} {} {}",
                     commit.short_sha, commit.date, commit.message

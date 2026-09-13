@@ -50,10 +50,14 @@ pub struct TriageState {
     focus: TriageFocus,
     file_diff_scroll: u16,
     show_scroll: u16,
+    /// Every commit currently listed in the main screen's Commits pane
+    /// (not just the ones with an evident match), so the commits pane
+    /// shown here — above the `git show` preview — mirrors it exactly.
+    commits: Vec<CommitInfo>,
 }
 
 impl TriageState {
-    pub fn new(matches: Vec<FileCommitMatch>) -> Self {
+    pub fn new(matches: Vec<FileCommitMatch>, commits: Vec<CommitInfo>) -> Self {
         let mut groups: Vec<TriageCommitGroup> = Vec::new();
         for m in matches {
             let commit = m.matching_commits[0].clone();
@@ -89,6 +93,7 @@ impl TriageState {
             focus: TriageFocus::List,
             file_diff_scroll: 0,
             show_scroll: 0,
+            commits,
         }
     }
 
@@ -310,6 +315,7 @@ pub struct TriageAreas {
     pub list: Rect,
     pub file_diff: Rect,
     pub help: Rect,
+    pub commits: Rect,
     pub show: Rect,
 }
 
@@ -328,11 +334,19 @@ pub fn compute_layout(area: Rect) -> TriageAreas {
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(left[0]);
 
+    // Right column mirrors the main screen's layout: the commits list on
+    // top, the git show of whichever commit is in scope below it.
+    let right = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
+        .split(columns[1]);
+
     TriageAreas {
         list: left_top[0],
         file_diff: left_top[1],
         help: left[1],
-        show: columns[1],
+        commits: right[0],
+        show: right[1],
     }
 }
 
@@ -418,7 +432,47 @@ pub fn render(frame: &mut Frame, area: Rect, state: &mut TriageState, strings: &
     let help = Paragraph::new(strings.triage_help).block(Block::default().borders(Borders::ALL));
     frame.render_widget(help, areas.help);
 
-    let show_lines = match state.current_commit_sha() {
+    let current_commit_sha = state.current_commit_sha();
+
+    // Mirrors the main screen's Commits pane: same index/sha/date/message
+    // layout, with the commit driving the git show pane below marked
+    // instead of the main screen's file-match "✓" (there is no open file
+    // selection here to match against).
+    let commit_items: Vec<ListItem> = state
+        .commits
+        .iter()
+        .enumerate()
+        .map(|(index, commit)| {
+            let is_current = current_commit_sha.as_deref() == Some(commit.short_sha.as_str());
+            let marker = if is_current {
+                Span::styled("→ ", Style::default().fg(Color::Yellow))
+            } else {
+                Span::raw("  ")
+            };
+            ListItem::new(Line::from(vec![
+                marker,
+                Span::styled(
+                    format!("{} ", index + 1),
+                    Style::default().fg(Color::DarkGray),
+                ),
+                Span::raw(format!(
+                    "{} {} {}",
+                    commit.short_sha, commit.date, commit.message
+                )),
+            ]))
+        })
+        .collect();
+    let commits_list = List::new(commit_items).block(
+        Block::default()
+            .title(Span::styled(
+                strings.commits_title,
+                Style::default().add_modifier(Modifier::BOLD),
+            ))
+            .borders(Borders::ALL),
+    );
+    frame.render_widget(commits_list, areas.commits);
+
+    let show_lines = match current_commit_sha {
         Some(sha) => match fetch_commit_show(&sha) {
             Ok(text) => text.lines().map(colorize_line).collect(),
             Err(err) => vec![Line::from(

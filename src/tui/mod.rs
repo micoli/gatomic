@@ -297,7 +297,7 @@ impl App {
             self.screen = Screen::Review;
             self.triage = None;
         } else {
-            self.triage = Some(TriageState::new(evident));
+            self.triage = Some(TriageState::new(evident, self.commits.clone()));
             self.screen = Screen::Triage;
         }
         Ok(())
