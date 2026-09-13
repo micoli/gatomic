@@ -65,6 +65,24 @@ pub struct Strings {
     pub help_language: &'static str,
     pub help_popup_title: &'static str,
 
+    /// Compact counterparts of the `help_*` lines above, used in the
+    /// bottom help bar (always on screen, so it must fit on one line);
+    /// the popup opened with `?` still shows the full-length versions.
+    pub short_switch_pane: &'static str,
+    pub short_navigate: &'static str,
+    pub short_reopen_triage: &'static str,
+    pub short_new_commit: &'static str,
+    pub short_quit: &'static str,
+    pub short_hunk_accept_reject_advance: &'static str,
+    pub short_hunk_accept_reject_rest: &'static str,
+    pub short_hunk_next_prev: &'static str,
+    pub short_hunk_next_prev_undecided: &'static str,
+    pub short_hunk_split: &'static str,
+    pub short_hunk_toggle: &'static str,
+    pub short_commit_fixup: &'static str,
+    pub short_commit_green_check: &'static str,
+    pub short_language: &'static str,
+
     pub commit_form_title: &'static str,
     pub commit_form_diff_title: &'static str,
     pub commit_form_validate: &'static str,

@@ -1112,7 +1112,7 @@ fn render_help_bar(
 ) {
     use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
-    let text = help_lines(pane, strings).join("   |   ");
+    let text = help_lines_short(pane, strings).join("   |   ");
     let bar = Paragraph::new(text)
         .block(Block::default().borders(Borders::ALL))
         .wrap(Wrap { trim: true });
@@ -1169,15 +1169,50 @@ fn help_lines(pane: Pane, strings: &'static Strings) -> Vec<&'static str> {
     }
 }
 
+/// Compact counterpart of [`help_lines`], for the always-visible bottom
+/// help bar — same key order per pane, just the `short_*` strings.
+fn help_lines_short(pane: Pane, strings: &'static Strings) -> Vec<&'static str> {
+    match pane {
+        Pane::Files => vec![
+            strings.short_switch_pane,
+            strings.short_navigate,
+            strings.short_reopen_triage,
+            strings.short_new_commit,
+            strings.short_language,
+            strings.short_quit,
+        ],
+        Pane::Hunks => vec![
+            strings.short_hunk_accept_reject_advance,
+            strings.short_hunk_accept_reject_rest,
+            strings.short_hunk_next_prev,
+            strings.short_hunk_next_prev_undecided,
+            strings.short_hunk_split,
+            strings.short_hunk_toggle,
+            strings.short_new_commit,
+            strings.short_language,
+            strings.short_quit,
+        ],
+        Pane::Commits => vec![
+            strings.short_commit_fixup,
+            strings.short_commit_green_check,
+            strings.short_navigate,
+            strings.short_new_commit,
+            strings.short_language,
+            strings.short_quit,
+        ],
+    }
+}
+
 fn render_help_popup(frame: &mut ratatui::Frame, pane: Pane, strings: &'static Strings) {
     use ratatui::layout::{Constraint, Flex, Layout};
     use ratatui::style::{Modifier, Style};
     use ratatui::text::Line;
-    use ratatui::widgets::{Block, Borders, Clear, Paragraph};
+    use ratatui::widgets::{Block, Borders, Clear, Padding, Paragraph};
 
     let area = frame.area();
+    // +2 for the border, +2 for the block's 1-char top/bottom padding.
     let popup_area = Layout::vertical([Constraint::Length(
-        help_lines(pane, strings).len() as u16 + 2,
+        help_lines(pane, strings).len() as u16 + 4,
     )])
     .flex(Flex::Center)
     .split(area)[0];
@@ -1195,6 +1230,7 @@ fn render_help_popup(frame: &mut ratatui::Frame, pane: Pane, strings: &'static S
                 strings.help_popup_title,
                 Style::default().add_modifier(Modifier::BOLD),
             ))
+            .padding(Padding::uniform(1))
             .borders(Borders::ALL),
     );
 
