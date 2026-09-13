@@ -1,3 +1,5 @@
+use std::collections::{HashMap, HashSet};
+
 use anyhow::Result;
 
 use super::repo::{run_git, run_git_allowing};
@@ -30,6 +32,34 @@ fn parse_log_output(raw: &str) -> Vec<CommitInfo> {
 pub fn commit_fixup(sha: &str) -> Result<()> {
     run_git(&["commit", "--fixup", sha])?;
     Ok(())
+}
+
+/// Files touched by each of `shas`, in a single `git show` process instead
+/// of one per commit — with many commits (e.g. `-n 30`) the naive
+/// one-spawn-per-commit approach was the dominant cost of opening the
+/// triage screen and refreshing the Commits pane. Unlike `git diff-tree`,
+/// plain `git show` already handles a repo's first (parentless) commit
+/// correctly without needing a `--root` flag.
+pub fn files_changed_in_commits(shas: &[&str]) -> Result<HashMap<String, HashSet<String>>> {
+    if shas.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let mut args = vec!["show", "--no-color", "--name-only", "--format=\u{1}%h"];
+    args.extend_from_slice(shas);
+    let raw = run_git(&args)?;
+
+    let mut files_by_commit = HashMap::new();
+    for chunk in raw.split('\u{1}').filter(|c| !c.is_empty()) {
+        let mut lines = chunk.lines();
+        let Some(sha) = lines.next() else { continue };
+        let files: HashSet<String> = lines
+            .filter(|l| !l.is_empty())
+            .map(str::to_string)
+            .collect();
+        files_by_commit.insert(sha.to_string(), files);
+    }
+    Ok(files_by_commit)
 }
 
 pub fn last_n_commits(n: usize) -> Result<Vec<CommitInfo>> {
