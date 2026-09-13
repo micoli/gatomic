@@ -104,11 +104,12 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         Style::default()
     };
 
+    let strings = app.strings();
     let title = app
         .current_file_path
         .as_deref()
-        .map(|p| format!("Hunks — {p}"))
-        .unwrap_or_else(|| "Hunks".to_string());
+        .map(|p| strings.hunks_title_with_path.replace("{path}", p))
+        .unwrap_or_else(|| strings.hunks_title.to_string());
 
     let block = Block::default()
         .title(Span::styled(title, pane_title_style(is_active)))

@@ -112,7 +112,10 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
     let list = List::new(items)
         .block(
             Block::default()
-                .title(Span::styled("Files", pane_title_style(is_active)))
+                .title(Span::styled(
+                    app.strings().files_title,
+                    pane_title_style(is_active),
+                ))
                 .borders(Borders::ALL)
                 .border_style(border_style),
         )

@@ -7,6 +7,7 @@ use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
 
 use crate::fixup::FileCommitMatch;
 use crate::git::{CommitInfo, run_git};
+use crate::i18n::Strings;
 
 use super::text_pane::{colorize_line, render_text_pane};
 
@@ -335,7 +336,7 @@ pub fn compute_layout(area: Rect) -> TriageAreas {
     }
 }
 
-pub fn render(frame: &mut Frame, area: Rect, state: &mut TriageState) {
+pub fn render(frame: &mut Frame, area: Rect, state: &mut TriageState, strings: &'static Strings) {
     use super::theme::active_pane_style;
 
     let border_style = |pane: TriageFocus| {
@@ -387,7 +388,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &mut TriageState) {
         .block(
             Block::default()
                 .title(Span::styled(
-                    "Associations évidentes fichier -> commit",
+                    strings.triage_list_title,
                     Style::default().add_modifier(Modifier::BOLD),
                 ))
                 .borders(Borders::ALL)
@@ -399,36 +400,37 @@ pub fn render(frame: &mut Frame, area: Rect, state: &mut TriageState) {
     let file_diff_lines = match state.current_selected_file_path() {
         Some(path) => match fetch_file_diff(&path) {
             Ok(text) => text.lines().map(colorize_line).collect(),
-            Err(err) => vec![Line::from(format!("erreur: {err}"))],
+            Err(err) => vec![Line::from(
+                strings.show_error.replace("{err}", &err.to_string()),
+            )],
         },
-        None => vec![Line::from("Sélectionnez un fichier pour voir son diff.")],
+        None => vec![Line::from(strings.triage_select_file_prompt)],
     };
     render_text_pane(
         frame,
         areas.file_diff,
-        "Diff du fichier sélectionné",
+        strings.triage_file_diff_title,
         border_style(TriageFocus::FileDiff),
         file_diff_lines,
         &mut state.file_diff_scroll,
     );
 
-    let help = Paragraph::new(
-        "Tab: changer de pane   Space: inclure/exclure   a: valider en lot   Enter/d/t/Esc: revue détaillée",
-    )
-    .block(Block::default().borders(Borders::ALL));
+    let help = Paragraph::new(strings.triage_help).block(Block::default().borders(Borders::ALL));
     frame.render_widget(help, areas.help);
 
     let show_lines = match state.current_commit_sha() {
         Some(sha) => match fetch_commit_show(&sha) {
             Ok(text) => text.lines().map(colorize_line).collect(),
-            Err(err) => vec![Line::from(format!("erreur: {err}"))],
+            Err(err) => vec![Line::from(
+                strings.show_error.replace("{err}", &err.to_string()),
+            )],
         },
         None => Vec::new(),
     };
     render_text_pane(
         frame,
         areas.show,
-        "git show",
+        strings.commit_show_title,
         border_style(TriageFocus::Show),
         show_lines,
         &mut state.show_scroll,

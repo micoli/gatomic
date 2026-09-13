@@ -48,7 +48,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         .block(
             Block::default()
                 .title(Span::styled(
-                    "Commits (x = fixup)",
+                    app.strings().commits_title,
                     pane_title_style(is_active),
                 ))
                 .borders(Borders::ALL)

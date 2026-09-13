@@ -19,10 +19,13 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         .and_then(|i| app.commits.get(i))
         .map(|c| c.short_sha.clone());
 
+    let strings = app.strings();
     let lines: Vec<Line<'static>> = match selected_sha {
         Some(sha) => match fetch_commit_show(&sha) {
             Ok(text) => text.lines().map(colorize_line).collect(),
-            Err(err) => vec![Line::from(format!("erreur: {err}"))],
+            Err(err) => vec![Line::from(
+                strings.show_error.replace("{err}", &err.to_string()),
+            )],
         },
         None => Vec::new(),
     };
@@ -37,7 +40,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
     render_text_pane(
         frame,
         area,
-        "git show",
+        strings.commit_show_title,
         border_style,
         lines,
         &mut app.commit_show_scroll,

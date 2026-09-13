@@ -1,0 +1,44 @@
+use super::Strings;
+
+pub static EN: Strings = Strings {
+    files_title: "Files",
+    hunks_title: "Hunks",
+    hunks_title_with_path: "Hunks — {path}",
+    commits_title: "Commits (x = fixup)",
+    commit_show_title: "git show",
+    show_error: "error: {err}",
+
+    help_switch_pane: "Tab / Shift+Tab: switch pane",
+    help_navigate: "Up/Down: navigate",
+    help_reopen_triage: "t: reopen triage of evident matches",
+    help_new_commit: "c: new commit from staged hunks",
+    help_quit: "q / Esc / Ctrl+C: quit",
+    help_hunk_accept_reject_advance: "y / n: accept / reject this hunk and advance",
+    help_hunk_accept_reject_rest: "a / d: accept / reject this hunk and the rest of the file",
+    help_hunk_next_prev: "j / k: next / previous hunk (without deciding)",
+    help_hunk_next_prev_undecided: "J / K: next / previous undecided hunk",
+    help_hunk_split: "s: split this hunk",
+    help_hunk_toggle: "Space/Enter: toggle selection (hunk or line)",
+    help_commit_fixup: "x: git commit --fixup on the selected commit",
+    help_commit_green_check: "✓ green: the selected file belongs to this commit",
+    help_language: "l: switch language",
+    help_popup_title: "Help (press any key to close)",
+
+    commit_form_title: "New commit (Enter: new line, Ctrl+Enter: submit, Esc: cancel)",
+    commit_form_diff_title: "Commit diff",
+    commit_form_validate: "Submit",
+    commit_form_cancel: "Cancel",
+
+    status_fixup_created: "{n} fixup commit(s) created",
+    status_all_hunks_decided: "All hunks decided",
+    status_review_complete: "Review complete for all files",
+    status_hunk_not_splittable: "Hunk cannot be split",
+    status_hunk_split: "Hunk split into {n} parts",
+    status_empty_commit_message: "Empty commit message, commit cancelled",
+    status_new_commit_created: "New commit created",
+
+    triage_list_title: "Evident file -> commit matches",
+    triage_select_file_prompt: "Select a file to see its diff.",
+    triage_file_diff_title: "Selected file diff",
+    triage_help: "Tab: switch pane   Space: include/exclude   a: accept in bulk   Enter/d/t/Esc: detailed review",
+};

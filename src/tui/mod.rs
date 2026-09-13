@@ -34,6 +34,7 @@ use crate::git::{
     commits_of_current_branch, last_n_commits, list_file_entries, numstat_against_head, stage_path,
     staged_diff,
 };
+use crate::i18n::{Lang, Strings};
 use crate::selection::FileSelection;
 use hunk_pane::HunkRow;
 use triage_screen::TriageState;
@@ -79,6 +80,7 @@ pub struct App {
 
     commit_form: Option<CommitFormState>,
 
+    lang: Lang,
     status: Option<String>,
     should_quit: bool,
 }
@@ -206,6 +208,7 @@ impl App {
             commits_state: ListState::default(),
             commit_show_scroll: 0,
             files_by_commit: HashMap::new(),
+            lang: Lang::default(),
             pane: Pane::Files,
             current_file_path: None,
             current_file_diff: None,
@@ -251,6 +254,10 @@ impl App {
         }
         self.files_by_commit = build_files_by_commit(&self.commits)?;
         Ok(())
+    }
+
+    pub(crate) fn strings(&self) -> &'static Strings {
+        self.lang.strings()
     }
 
     fn selected_file(&self) -> Option<&FileEntry> {
@@ -307,7 +314,11 @@ impl App {
             }
             commit_fixup(sha)?;
         }
-        self.status = Some(format!("{} commit(s) fixup créé(s)", groups.len()));
+        self.status = Some(
+            self.strings()
+                .status_fixup_created
+                .replace("{n}", &groups.len().to_string()),
+        );
 
         self.selections.clear();
         self.current_file_diff = None;
@@ -523,7 +534,7 @@ impl App {
         };
         match target {
             Some(idx) => self.select_hunk_header_row(idx),
-            None => self.status = Some("Tous les hunks sont décidés".to_string()),
+            None => self.status = Some(self.strings().status_all_hunks_decided.to_string()),
         }
     }
 
@@ -542,7 +553,7 @@ impl App {
             let previous = self.files_state.selected();
             Self::next_in(&mut self.files_state, self.files.len());
             if self.files_state.selected() == previous {
-                self.status = Some("Revue terminée pour tous les fichiers".to_string());
+                self.status = Some(self.strings().status_review_complete.to_string());
             } else {
                 self.load_selected_file_diff()?;
             }
@@ -596,7 +607,7 @@ impl App {
         };
 
         let Some(sub_hunks) = split_hunk(&diff.hunks[hunk_index], self.context_lines) else {
-            self.status = Some("Hunk non divisible".to_string());
+            self.status = Some(self.strings().status_hunk_not_splittable.to_string());
             return Ok(());
         };
         let split_count = sub_hunks.len();
@@ -606,7 +617,11 @@ impl App {
         self.selections
             .insert(path.clone(), FileSelection::all_undecided(&path, diff));
         self.select_hunk_header_row(hunk_index);
-        self.status = Some(format!("Hunk découpé en {split_count} parties"));
+        self.status = Some(
+            self.strings()
+                .status_hunk_split
+                .replace("{n}", &split_count.to_string()),
+        );
         Ok(())
     }
 
@@ -690,12 +705,12 @@ impl App {
         };
         let message = form.message();
         if message.trim().is_empty() {
-            self.status = Some("Message de commit vide, commit annulé".to_string());
+            self.status = Some(self.strings().status_empty_commit_message.to_string());
             return Ok(());
         }
 
         commit_with_message(&message)?;
-        self.status = Some("Nouveau commit créé".to_string());
+        self.status = Some(self.strings().status_new_commit_created.to_string());
 
         // HEAD moved: cached diffs/selections for open files are stale.
         self.selections.clear();
@@ -904,6 +919,12 @@ impl App {
             return Ok(());
         }
 
+        // Works from either screen, unlike pane-specific bindings below.
+        if code == KeyCode::Char('l') {
+            self.lang = self.lang.cycle();
+            return Ok(());
+        }
+
         if self.screen == Screen::Triage {
             return self.handle_triage_key(code);
         }
@@ -954,25 +975,27 @@ impl App {
 
     fn draw(&mut self, frame: &mut ratatui::Frame) {
         if self.screen == Screen::Triage {
+            let strings = self.strings();
             if let Some(triage) = &mut self.triage {
-                triage_screen::render(frame, frame.area(), triage);
+                triage_screen::render(frame, frame.area(), triage, strings);
             }
             return;
         }
 
+        let strings = self.strings();
         let areas = layout::compute_layout(frame.area(), self.files.len());
         files_pane::render(frame, areas.files, self);
         hunk_pane::render(frame, areas.hunks, self);
         commits_pane::render(frame, areas.commits, self);
         commit_show_pane::render(frame, areas.commit_show, self);
-        render_help_bar(frame, areas.help, self.pane);
+        render_help_bar(frame, areas.help, self.pane, strings);
 
         if let Some(form) = &self.commit_form {
-            render_commit_form_popup(frame, form);
+            render_commit_form_popup(frame, form, strings);
         }
 
         if self.show_help {
-            render_help_popup(frame, self.pane);
+            render_help_popup(frame, self.pane, strings);
         }
     }
 }
@@ -1022,7 +1045,11 @@ fn compute_commit_form_layout(area: Rect, form: &CommitFormState) -> CommitFormA
     }
 }
 
-fn render_commit_form_popup(frame: &mut ratatui::Frame, form: &CommitFormState) {
+fn render_commit_form_popup(
+    frame: &mut ratatui::Frame,
+    form: &CommitFormState,
+    strings: &'static Strings,
+) {
     use ratatui::layout::Alignment;
     use ratatui::style::{Color, Modifier, Style};
     use ratatui::text::Span;
@@ -1036,7 +1063,7 @@ fn render_commit_form_popup(frame: &mut ratatui::Frame, form: &CommitFormState) 
     let message = Paragraph::new(form.lines.join("\n")).block(
         Block::default()
             .title(Span::styled(
-                "Nouveau commit (Entrée: nouvelle ligne, Ctrl+Entrée: valider, Esc: annuler)",
+                strings.commit_form_title,
                 Style::default().add_modifier(Modifier::BOLD),
             ))
             .borders(Borders::ALL)
@@ -1052,13 +1079,13 @@ fn render_commit_form_popup(frame: &mut ratatui::Frame, form: &CommitFormState) 
 
     let diff_view = Paragraph::new(form.diff.as_str()).block(
         Block::default()
-            .title("Diff du commit")
+            .title(strings.commit_form_diff_title)
             .borders(Borders::ALL)
             .border_style(red_border),
     );
     frame.render_widget(diff_view, areas.diff);
 
-    let validate = Paragraph::new("Valider")
+    let validate = Paragraph::new(strings.commit_form_validate)
         .alignment(Alignment::Center)
         .block(
             Block::default()
@@ -1067,7 +1094,7 @@ fn render_commit_form_popup(frame: &mut ratatui::Frame, form: &CommitFormState) 
         );
     frame.render_widget(validate, areas.validate_button);
 
-    let cancel = Paragraph::new("Annuler")
+    let cancel = Paragraph::new(strings.commit_form_cancel)
         .alignment(Alignment::Center)
         .block(
             Block::default()
@@ -1077,10 +1104,15 @@ fn render_commit_form_popup(frame: &mut ratatui::Frame, form: &CommitFormState) 
     frame.render_widget(cancel, areas.cancel_button);
 }
 
-fn render_help_bar(frame: &mut ratatui::Frame, area: ratatui::layout::Rect, pane: Pane) {
+fn render_help_bar(
+    frame: &mut ratatui::Frame,
+    area: ratatui::layout::Rect,
+    pane: Pane,
+    strings: &'static Strings,
+) {
     use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
-    let text = help_lines(pane).join("   |   ");
+    let text = help_lines(pane, strings).join("   |   ");
     let bar = Paragraph::new(text)
         .block(Block::default().borders(Borders::ALL))
         .wrap(Wrap { trim: true });
@@ -1105,54 +1137,62 @@ fn row_at(area: Rect, offset: usize, y: u16, len: usize) -> Option<usize> {
     if idx < len { Some(idx) } else { None }
 }
 
-fn help_lines(pane: Pane) -> Vec<&'static str> {
+fn help_lines(pane: Pane, strings: &'static Strings) -> Vec<&'static str> {
     match pane {
         Pane::Files => vec![
-            "Tab / Shift+Tab : changer de pane",
-            "Haut/Bas : naviguer",
-            "t : rouvrir le triage des associations évidentes",
-            "c : nouveau commit avec les hunks stagés",
-            "q / Esc / Ctrl+C : quitter",
+            strings.help_switch_pane,
+            strings.help_navigate,
+            strings.help_reopen_triage,
+            strings.help_new_commit,
+            strings.help_language,
+            strings.help_quit,
         ],
         Pane::Hunks => vec![
-            "y / n : accepter / rejeter ce hunk et avancer",
-            "a / d : accepter / rejeter ce hunk et tout le reste du fichier",
-            "j / k : hunk suivant / précédent (sans décider)",
-            "J / K : prochain / précédent hunk non décidé",
-            "s : découper ce hunk",
-            "Espace/Entrée : toggle fin (hunk ou ligne)",
-            "c : nouveau commit avec les hunks stagés",
-            "q / Esc / Ctrl+C : quitter",
+            strings.help_hunk_accept_reject_advance,
+            strings.help_hunk_accept_reject_rest,
+            strings.help_hunk_next_prev,
+            strings.help_hunk_next_prev_undecided,
+            strings.help_hunk_split,
+            strings.help_hunk_toggle,
+            strings.help_new_commit,
+            strings.help_language,
+            strings.help_quit,
         ],
         Pane::Commits => vec![
-            "x : git commit --fixup sur le commit sélectionné",
-            "✓ vert : le fichier sélectionné appartient à ce commit",
-            "Haut/Bas : naviguer",
-            "c : nouveau commit avec les hunks stagés",
-            "q / Esc / Ctrl+C : quitter",
+            strings.help_commit_fixup,
+            strings.help_commit_green_check,
+            strings.help_navigate,
+            strings.help_new_commit,
+            strings.help_language,
+            strings.help_quit,
         ],
     }
 }
 
-fn render_help_popup(frame: &mut ratatui::Frame, pane: Pane) {
+fn render_help_popup(frame: &mut ratatui::Frame, pane: Pane, strings: &'static Strings) {
     use ratatui::layout::{Constraint, Flex, Layout};
     use ratatui::style::{Modifier, Style};
     use ratatui::text::Line;
     use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 
     let area = frame.area();
-    let popup_area = Layout::vertical([Constraint::Length(help_lines(pane).len() as u16 + 2)])
-        .flex(Flex::Center)
-        .split(area)[0];
+    let popup_area = Layout::vertical([Constraint::Length(
+        help_lines(pane, strings).len() as u16 + 2,
+    )])
+    .flex(Flex::Center)
+    .split(area)[0];
     let popup_area = Layout::horizontal([Constraint::Percentage(60)])
         .flex(Flex::Center)
         .split(popup_area)[0];
 
-    let lines: Vec<Line> = help_lines(pane).into_iter().map(Line::from).collect();
+    let lines: Vec<Line> = help_lines(pane, strings)
+        .into_iter()
+        .map(Line::from)
+        .collect();
     let paragraph = Paragraph::new(lines).block(
         Block::default()
             .title(ratatui::text::Span::styled(
-                "Aide (touche quelconque pour fermer)",
+                strings.help_popup_title,
                 Style::default().add_modifier(Modifier::BOLD),
             ))
             .borders(Borders::ALL),
