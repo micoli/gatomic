@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 
 use anyhow::Result;
 
@@ -32,6 +33,33 @@ fn parse_log_output(raw: &str) -> Vec<CommitInfo> {
 pub fn commit_fixup(sha: &str) -> Result<()> {
     run_git(&["commit", "--fixup", sha])?;
     Ok(())
+}
+
+/// Creates a plain commit from whatever is currently staged, used by the
+/// "new commit" form to turn the hunks currently in the patch into a
+/// standalone commit instead of a fixup.
+pub fn commit_with_message(message: &str) -> Result<()> {
+    run_git(&["commit", "-m", message])?;
+    Ok(())
+}
+
+/// Content of the commit template configured via `commit.template`, if any.
+/// `None` when unconfigured or when the configured file can't be read —
+/// the template is a convenience prefill, not something worth failing the
+/// "new commit" form over.
+pub fn commit_template() -> Result<Option<String>> {
+    let raw = match run_git_allowing(&["config", "commit.template"], &[0, 1]) {
+        Ok(out) if !out.trim().is_empty() => out.trim().to_string(),
+        _ => return Ok(None),
+    };
+    Ok(std::fs::read_to_string(expand_tilde(&raw)).ok())
+}
+
+fn expand_tilde(path: &str) -> PathBuf {
+    if let (Some(rest), Ok(home)) = (path.strip_prefix("~/"), std::env::var("HOME")) {
+        return PathBuf::from(home).join(rest);
+    }
+    PathBuf::from(path)
 }
 
 /// Files touched by each of `shas`, in a single `git show` process instead

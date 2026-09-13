@@ -38,6 +38,13 @@ pub fn numstat_against_head() -> Result<HashMap<String, (u32, u32)>> {
     Ok(raw.lines().filter_map(parse_numstat_line).collect())
 }
 
+/// Diff of everything currently staged, i.e. what `git commit` would
+/// actually commit — used to preview the commit's content in the "new
+/// commit" form.
+pub fn staged_diff() -> Result<String> {
+    run_git(&["diff", "--cached", "--no-color"])
+}
+
 fn parse_numstat_line(line: &str) -> Option<(String, (u32, u32))> {
     let mut parts = line.splitn(3, '\t');
     let added: u32 = parts.next()?.parse().ok()?;
