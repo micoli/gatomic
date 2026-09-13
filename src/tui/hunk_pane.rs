@@ -4,6 +4,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, List, ListItem};
 
+use super::theme::{active_pane_style, pane_title_style};
 use super::{App, Pane};
 use crate::diff::{FileDiff, LineKind};
 use crate::selection::{FileSelection, HunkDecision};
@@ -12,6 +13,14 @@ use crate::selection::{FileSelection, HunkDecision};
 pub enum HunkRow {
     Header(usize),
     Line(usize, usize),
+}
+
+impl HunkRow {
+    pub fn hunk_index(&self) -> usize {
+        match *self {
+            HunkRow::Header(h) | HunkRow::Line(h, _) => h,
+        }
+    }
 }
 
 pub fn build_rows(diff: &FileDiff) -> Vec<HunkRow> {
@@ -25,6 +34,15 @@ pub fn build_rows(diff: &FileDiff) -> Vec<HunkRow> {
     rows
 }
 
+fn decision_glyph(decision: HunkDecision) -> &'static str {
+    match decision {
+        HunkDecision::Undecided => "[?]",
+        HunkDecision::Accepted => "[x]",
+        HunkDecision::Rejected => "[ ]",
+        HunkDecision::Partial => "[~]",
+    }
+}
+
 fn checkbox(selected: bool) -> &'static str {
     if selected { "[x]" } else { "[ ]" }
 }
@@ -33,14 +51,14 @@ fn render_row(row: &HunkRow, diff: &FileDiff, selection: &FileSelection) -> List
     match *row {
         HunkRow::Header(hunk_index) => {
             let hunk = &diff.hunks[hunk_index];
-            let selected = selection
+            let decision = selection
                 .hunks
                 .get(hunk_index)
-                .map(|h| h.decision == HunkDecision::Accepted)
-                .unwrap_or(false);
+                .map(|h| h.decision)
+                .unwrap_or(HunkDecision::Undecided);
             let text = format!(
                 "{} @@ -{},{} +{},{} @@",
-                checkbox(selected),
+                decision_glyph(decision),
                 hunk.old_start,
                 hunk.old_lines,
                 hunk.new_start,
@@ -79,8 +97,9 @@ fn render_row(row: &HunkRow, diff: &FileDiff, selection: &FileSelection) -> List
 }
 
 pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
-    let border_style = if app.pane == Pane::Hunks {
-        Style::default().fg(Color::Cyan)
+    let is_active = app.pane == Pane::Hunks;
+    let border_style = if is_active {
+        active_pane_style()
     } else {
         Style::default()
     };
@@ -92,7 +111,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
         .unwrap_or_else(|| "Hunks".to_string());
 
     let block = Block::default()
-        .title(title)
+        .title(Span::styled(title, pane_title_style(is_active)))
         .borders(Borders::ALL)
         .border_style(border_style);
 

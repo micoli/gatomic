@@ -37,18 +37,34 @@ the original design plan/rationale.
   exclusively; `Undecided` and `Rejected` are staging-equivalent (both
   empty). New files default to **all-undecided**, not all-selected: nothing
   is staged until the user explicitly accepts/rejects each hunk.
+- `src/fixup.rs` — matches modified/tracked files against the commits
+  currently shown in the Commits pane (`git diff-tree --root ...` per
+  commit, see `git::commit::files_changed_in_commit`). A match is
+  "evident" (`FileCommitMatch::is_evident`) when exactly one commit touched
+  the file. Untracked files are always skipped (no history, never a fixup
+  target). `--root` on the `diff-tree` call is load-bearing — without it, a
+  repo's very first commit reports zero changed files and its file(s)
+  silently vanish from matching.
 - `src/tui/` — one file per pane (`files_pane.rs`, `hunk_pane.rs`,
-  `commits_pane.rs`) plus `layout.rs` (3-zone `ratatui::Layout`) and
-  `mod.rs` (the `App` state machine + event loop). Each hunk/line decision
-  in the Hunks pane calls `diff::apply_selection` immediately (git
-  add -p-style), which first resets the file's index entry to HEAD then
-  reapplies the current selection from scratch — this makes every decision
-  idempotent regardless of history, so don't try to make it
+  `commits_pane.rs`, `triage_screen.rs`) plus `layout.rs` (3-zone
+  `ratatui::Layout`), `theme.rs`, and `mod.rs` (the `App` state machine +
+  event loop, dispatching between `Screen::Triage` and `Screen::Review`).
+  Each hunk/line decision in the Hunks pane calls `diff::apply_selection`
+  immediately (git add -p-style), which first resets the file's index entry
+  to HEAD then reapplies the current selection from scratch — this makes
+  every decision idempotent regardless of history, so don't try to make it
   incremental/diffed against the previous selection.
 - The Hunks pane has two coexisting interaction styles: free navigation
   (arrows + Space/Enter, any row granularity) and the guided `git add -p`
-  review (`y`/`n`/`a`/`d`/`j`/`k`/`J`/`K`, hunk granularity only). Both
+  review (`y`/`n`/`a`/`d`/`j`/`k`/`J`/`K`/`s`, hunk granularity only). Both
   mutate the same `FileSelection` — don't let them diverge.
+- **`handle_key` modifier guard**: any `KeyModifiers::CONTROL` combination
+  other than `Ctrl+C` must return early before reaching the plain-key match
+  arms (see the comment at the top of `handle_key`). `KeyCode::Char` values
+  don't encode modifiers, so e.g. Ctrl+D and plain `d` are the same
+  `KeyCode` — without the guard, Ctrl+D silently triggered the triage
+  screen's `d` ("skip") binding. This was a real bug found via manual
+  testing, not a hypothetical.
 
 ## Key invariants / gotchas
 
