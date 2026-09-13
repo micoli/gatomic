@@ -24,6 +24,11 @@ the original design plan/rationale.
   - `load.rs`: picks `git diff` vs `git diff --no-index` depending on
     tracked/untracked status; untracked files deliberately reuse the exact
     same "new file" code path as tracked new files.
+- `src/diff/split.rs` — splits one hunk with multiple change blocks into
+  several hunks (`git add -p`'s `s` key), using each `DiffLine`'s absolute
+  `old_lineno`/`new_lineno` rather than recomputing counters. Only splits
+  when consecutive change blocks are separated by `>= 2 * context_lines` of
+  context; otherwise no-op (`None`).
 - `src/selection.rs` — per-file hunk/line selection state
   (`FileSelection`/`HunkSelection`), with a 4-state `HunkDecision`
   (`Undecided`/`Accepted`/`Rejected`/`Partial`) mirroring `git add -p`.
