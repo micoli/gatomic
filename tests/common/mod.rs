@@ -15,9 +15,13 @@ use std::sync::{Mutex, MutexGuard, OnceLock};
 
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
+/// A panic inside one test while holding this lock must not poison it for
+/// every other test in the suite — recover the guard instead of unwrapping.
 pub fn sandbox_lock() -> MutexGuard<'static, ()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
+    LOCK.get_or_init(|| Mutex::new(()))
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 pub struct Sandbox {
