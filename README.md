@@ -113,6 +113,20 @@ to cycle to another embedded language — currently English and French.
 Translations live one file per language under `src/i18n/` (`en.rs`,
 `fr.rs`); adding a language means adding a new file there.
 
+## Installation
+
+Download the archive for your platform from the [releases page](https://github.com/omichaud/gatomic/releases), extract it, and place the `gatomic` binary somewhere on your `PATH`.
+
+### macOS: Gatekeeper warning
+
+macOS quarantines binaries downloaded from the internet. After extracting, run:
+
+```sh
+xattr -d com.apple.quarantine ./gatomic
+```
+
+Or go to **System Settings → Privacy & Security** and click **Allow Anyway** after the first blocked launch.
+
 ## Development
 
 ```sh

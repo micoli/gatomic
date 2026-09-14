@@ -72,6 +72,10 @@ jobs:
             cargo build --release --locked --target ${{ matrix.target }}
           fi
 
+      - name: Sign (ad-hoc)
+        if: runner.os == 'macOS'
+        run: codesign --sign - --force --preserve-metadata=entitlements,requirements,flags,runtime "target/${{ matrix.target }}/release/gatomic"
+
       - name: Package
         id: package
         shell: bash
