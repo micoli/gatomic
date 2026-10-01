@@ -7,20 +7,22 @@ use super::repo::{run_git, run_git_allowing, run_git_with_stdin};
 
 #[derive(Debug, Clone)]
 pub struct CommitInfo {
+    pub sha: String,
     pub short_sha: String,
     pub date: String,
     pub author: String,
     pub message: String,
 }
 
-const LOG_FORMAT: &str = "%h\x01%ad\x01%an\x01%s";
+const LOG_FORMAT: &str = "%H\x01%h\x01%ad\x01%an\x01%s";
 
 fn parse_log_output(raw: &str) -> Vec<CommitInfo> {
     raw.lines()
         .filter(|line| !line.is_empty())
         .filter_map(|line| {
-            let mut parts = line.splitn(4, '\x01');
+            let mut parts = line.splitn(5, '\x01');
             Some(CommitInfo {
+                sha: parts.next()?.to_string(),
                 short_sha: parts.next()?.to_string(),
                 date: parts.next()?.to_string(),
                 author: parts.next()?.to_string(),
@@ -97,17 +99,49 @@ pub fn files_changed_in_commits(shas: &[&str]) -> Result<HashMap<String, HashSet
     Ok(files_by_commit)
 }
 
+const FIXUP_PREFIX: &str = "fixup! ";
+
+fn is_fixup_commit(commit: &CommitInfo) -> bool {
+    commit.message.starts_with(FIXUP_PREFIX)
+}
+
+/// Drops `fixup! ` commits: they are never valid fixup targets.
+pub fn filter_fixup_targets(commits: Vec<CommitInfo>) -> Vec<CommitInfo> {
+    commits
+        .into_iter()
+        .filter(|c| !is_fixup_commit(c))
+        .collect()
+}
+
+fn log_commits(extra_args: &[&str]) -> Result<Vec<CommitInfo>> {
+    let format = format!("--format={LOG_FORMAT}");
+    let mut args = vec!["log", "--date=short", format.as_str()];
+    args.extend_from_slice(extra_args);
+    Ok(parse_log_output(&run_git(&args)?))
+}
+
 pub fn last_n_commits(n: usize) -> Result<Vec<CommitInfo>> {
-    let n_arg = n.to_string();
-    let raw = run_git(&[
-        "log",
-        "-n",
-        &n_arg,
-        "--date=short",
-        &format!("--format={LOG_FORMAT}"),
-        "HEAD",
-    ])?;
-    Ok(parse_log_output(&raw))
+    log_commits(&["-n", &n.to_string(), "HEAD"])
+}
+
+/// Re-reads exactly `shas`, in the given order, without walking history, so
+/// the result is unaffected by HEAD moving (e.g. after a fixup commit).
+pub fn commits_by_shas(shas: &[String]) -> Result<Vec<CommitInfo>> {
+    if shas.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut extra = vec!["--no-walk=unsorted"];
+    extra.extend(shas.iter().map(String::as_str));
+    log_commits(&extra)
+}
+
+/// Commits reachable from HEAD but not from `base` (sha, tag, branch, ...),
+/// i.e. `git log <base>..HEAD`.
+pub fn commits_since(base: &str) -> Result<Vec<CommitInfo>> {
+    let commit_ref = format!("{base}^{{commit}}");
+    run_git(&["rev-parse", "--verify", "--quiet", &commit_ref])
+        .map_err(|_| anyhow::anyhow!("unknown revision for --rebase-origin: {base}"))?;
+    log_commits(&[&format!("{base}..HEAD")])
 }
 
 /// Finds a base ref to diff the current branch against: the branch's upstream
@@ -140,18 +174,10 @@ fn find_branch_base() -> Option<String> {
 /// Commits unique to the current branch, i.e. `git log <base>..HEAD`.
 /// Falls back to the full HEAD history when no base ref can be determined.
 pub fn commits_of_current_branch() -> Result<Vec<CommitInfo>> {
-    let range = match find_branch_base() {
-        Some(base) => format!("{base}..HEAD"),
-        None => "HEAD".to_string(),
-    };
-
-    let raw = run_git(&[
-        "log",
-        "--date=short",
-        &format!("--format={LOG_FORMAT}"),
-        &range,
-    ])?;
-    Ok(parse_log_output(&raw))
+    match find_branch_base() {
+        Some(base) => log_commits(&[&format!("{base}..HEAD")]),
+        None => log_commits(&["HEAD"]),
+    }
 }
 
 #[cfg(test)]
@@ -160,12 +186,20 @@ mod tests {
 
     #[test]
     fn parses_log_output() {
-        let raw = "abc123\x012026-09-13\x01Alice\x01Fix bug\nd4e5f6\x012026-09-12\x01Bob\x01Add feature\n";
+        let raw = "full1\x01abc123\x012026-09-13\x01Alice\x01Fix bug\nfull2\x01d4e5f6\x012026-09-12\x01Bob\x01Add feature\n";
         let commits = parse_log_output(raw);
         assert_eq!(commits.len(), 2);
         assert_eq!(commits[0].short_sha, "abc123");
         assert_eq!(commits[0].author, "Alice");
         assert_eq!(commits[0].message, "Fix bug");
         assert_eq!(commits[1].message, "Add feature");
+    }
+
+    #[test]
+    fn filters_fixup_commits() {
+        let raw = "f1\x01a\x012026-09-13\x01A\x01fixup! Fix bug\nf2\x01b\x012026-09-13\x01A\x01Add feature\n";
+        let kept = filter_fixup_targets(parse_log_output(raw));
+        assert_eq!(kept.len(), 1);
+        assert_eq!(kept[0].short_sha, "b");
     }
 }

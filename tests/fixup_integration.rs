@@ -5,7 +5,8 @@ mod common;
 
 use gatomic::fixup::{build_files_by_commit, match_files_to_commits};
 use gatomic::git::{
-    FileEntry, FileStatusKind, commit_fixup, commits_of_current_branch, stage_path,
+    FileEntry, FileStatusKind, commit_fixup, commits_by_shas, commits_of_current_branch,
+    commits_since, filter_fixup_targets, stage_path,
 };
 
 use common::{Sandbox, sandbox_lock};
@@ -111,4 +112,60 @@ fn build_files_by_commit_maps_each_sha_to_its_changed_paths() {
     assert!(map[&init_a.short_sha].contains("a.txt"));
     assert!(!map[&init_a.short_sha].contains("b.txt"));
     assert!(map[&init_b.short_sha].contains("b.txt"));
+}
+
+#[test]
+fn commits_since_returns_only_commits_after_ref() {
+    let _guard = sandbox_lock();
+    let sandbox = Sandbox::enter();
+
+    sandbox.commit("a.txt", "a\n", "first");
+    sandbox.commit("b.txt", "b\n", "second");
+    sandbox.commit("c.txt", "c\n", "third");
+
+    let messages: Vec<_> = commits_since("HEAD~2")
+        .unwrap()
+        .into_iter()
+        .map(|c| c.message)
+        .collect();
+    assert_eq!(messages, ["third", "second"]);
+    assert!(commits_since("no-such-ref").is_err());
+}
+
+#[test]
+fn fixup_commits_are_excluded_from_targets() {
+    let _guard = sandbox_lock();
+    let sandbox = Sandbox::enter();
+
+    sandbox.commit("a.txt", "a\n", "first");
+    sandbox.commit("a.txt", "a2\n", "fixup! first");
+
+    let messages: Vec<_> = filter_fixup_targets(commits_of_current_branch().unwrap())
+        .into_iter()
+        .map(|c| c.message)
+        .collect();
+    assert_eq!(messages, ["first"]);
+}
+
+#[test]
+fn resolved_candidates_stay_stable_after_a_fixup_commit() {
+    let _guard = sandbox_lock();
+    let sandbox = Sandbox::enter();
+
+    sandbox.commit("a.txt", "a\n", "first");
+    sandbox.commit("b.txt", "b\n", "second");
+
+    let shas: Vec<String> = commits_since("HEAD~1")
+        .unwrap()
+        .into_iter()
+        .map(|c| c.sha)
+        .collect();
+
+    std::fs::write("a.txt", "a changed\n").unwrap();
+    stage_path("a.txt").unwrap();
+    commit_fixup("HEAD~1").unwrap();
+
+    let after = commits_by_shas(&shas).unwrap();
+    assert_eq!(after.len(), 1);
+    assert_eq!(after[0].message, "second");
 }

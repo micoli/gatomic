@@ -72,6 +72,11 @@ the original design plan/rationale.
   the current branch" (`git::commit::commits_of_current_branch`), not "some
   default count". Don't give it a numeric default — that changes the
   documented CLI behavior (see AskUserQuestion history in the plan file).
+- Candidate commits (`-n`, `--rebase-origin <REF>` = `<REF>..HEAD`, or default
+  branch mode) are resolved once into full SHAs in `App::new`
+  (`resolve_candidate_shas`) and re-read via `commits_by_shas` on refresh, so
+  the list is stable when HEAD moves. `fixup! ` commits are filtered out.
+  `--rebase-origin` conflicts with `-n`.
 - Fixup is committed with `git commit --fixup <sha>`. No squash, no
   autosquash in V1 (explicit user decision) — don't add those without
   checking with the user first.

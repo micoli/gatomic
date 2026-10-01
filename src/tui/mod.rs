@@ -30,9 +30,9 @@ use crate::cli::Cli;
 use crate::diff::{FileDiff, apply_selection, count_hunks_per_file, load_file_diff, split_hunk};
 use crate::fixup::{build_files_by_commit, match_files_to_commits};
 use crate::git::{
-    CommitInfo, FileEntry, commit_fixup, commit_template, commit_with_message,
-    commits_of_current_branch, last_n_commits, list_file_entries, numstat_against_head, stage_path,
-    staged_diff,
+    CommitInfo, FileEntry, commit_fixup, commit_template, commit_with_message, commits_by_shas,
+    commits_of_current_branch, commits_since, filter_fixup_targets, last_n_commits,
+    list_file_entries, numstat_against_head, stage_path, staged_diff,
 };
 use crate::i18n::{Lang, Strings};
 use crate::selection::FileSelection;
@@ -54,7 +54,7 @@ enum Screen {
 
 pub struct App {
     context_lines: u32,
-    last_commits: Option<usize>,
+    candidate_shas: Vec<String>,
 
     screen: Screen,
     triage: Option<TriageState>,
@@ -192,11 +192,23 @@ fn char_to_byte_index(s: &str, char_idx: usize) -> usize {
         .unwrap_or(s.len())
 }
 
+fn resolve_candidate_shas(cli: &Cli) -> Result<Vec<String>> {
+    let commits = match (&cli.rebase_origin, cli.last_commits) {
+        (Some(base), _) => commits_since(base)?,
+        (None, Some(n)) => last_n_commits(n)?,
+        (None, None) => commits_of_current_branch()?,
+    };
+    Ok(filter_fixup_targets(commits)
+        .into_iter()
+        .map(|c| c.sha)
+        .collect())
+}
+
 impl App {
     pub fn new(cli: &Cli) -> Result<Self> {
         let mut app = App {
             context_lines: cli.context_lines,
-            last_commits: cli.last_commits,
+            candidate_shas: resolve_candidate_shas(cli)?,
             screen: Screen::Review,
             triage: None,
             show_help: false,
@@ -245,10 +257,7 @@ impl App {
     }
 
     fn refresh_commits(&mut self) -> Result<()> {
-        self.commits = match self.last_commits {
-            Some(n) => last_n_commits(n)?,
-            None => commits_of_current_branch()?,
-        };
+        self.commits = commits_by_shas(&self.candidate_shas)?;
         if !self.commits.is_empty() && self.commits_state.selected().is_none() {
             self.commits_state.select(Some(0));
         }

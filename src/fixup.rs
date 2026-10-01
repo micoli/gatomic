@@ -83,6 +83,7 @@ mod tests {
 
     fn commit(sha: &str) -> CommitInfo {
         CommitInfo {
+            sha: sha.to_string(),
             short_sha: sha.to_string(),
             date: "2026-01-01".to_string(),
             author: "tester".to_string(),

@@ -20,3 +20,15 @@ fn rejects_unknown_flags() {
     let output = Command::new(BIN).arg("--not-a-real-flag").output().unwrap();
     assert!(!output.status.success());
 }
+
+#[test]
+fn rebase_origin_is_documented_and_conflicts_with_last_commits() {
+    let help = Command::new(BIN).arg("--help").output().unwrap();
+    assert!(String::from_utf8_lossy(&help.stdout).contains("--rebase-origin"));
+
+    let output = Command::new(BIN)
+        .args(["--rebase-origin", "HEAD", "-n", "3"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+}

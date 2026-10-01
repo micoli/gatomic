@@ -72,7 +72,11 @@ gatomic starts directly in the review layout.
 ```sh
 gatomic              # commits unique to the current branch
 gatomic -n 30        # 30 most recent commits on HEAD
+gatomic --rebase-origin origin/main   # commits in <REF>..HEAD (sha, tag, branch)
 ```
+
+`fixup! ` commits are never offered as targets, and the candidate list is
+resolved once at startup, so it stays stable while you create fixups.
 
 ### Keys
 
